@@ -6,6 +6,8 @@ import { ForgotPassword } from '../features/auth/ForgotPassword.jsx';
 import { Onboarding } from '../features/onboarding/Onboarding.jsx';
 import { Dashboard } from '../features/dashboard/Dashboard.jsx';
 import { ProfileSettings } from '../features/settings/ProfileSettings.jsx';
+import { ResearchLab } from '../features/research/ResearchLab.jsx';
+import { IdeaStudio } from '../features/ideas/IdeaStudio.jsx';
 import { ProtectedRoute } from '../features/auth/ProtectedRoute.jsx';
 import { AppLayout } from '../components/layout/AppLayout.jsx';
 
@@ -45,6 +47,14 @@ export const router = createBrowserRouter([
       {
         path: 'dashboard',
         element: <Dashboard />,
+      },
+      {
+        path: 'research',
+        element: <ResearchLab />,
+      },
+      {
+        path: 'ideas',
+        element: <IdeaStudio />,
       },
       {
         path: 'settings/profile',

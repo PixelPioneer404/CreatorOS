@@ -23,8 +23,8 @@ export function ProtectedRoute({ children, requireOnboarding = true }) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // If workspace is still loading
-  if (workspaceLoading && !currentWorkspace) {
+  // If workspace or creator profile is still loading
+  if (workspaceLoading || (session && creatorProfile === null)) {
     return <FullPageLoader text="Loading your creator workspace..." />;
   }
 

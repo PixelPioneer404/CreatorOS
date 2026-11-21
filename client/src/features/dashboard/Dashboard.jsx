@@ -27,12 +27,6 @@ import {
 
 const upcomingRoadmap = [
   {
-    version: 'V2',
-    name: 'Research & Idea Engine',
-    icon: Search,
-    description: 'Niche trend discovery, multi-source reference capture, searchable hook library, and AI idea scoring.',
-  },
-  {
     version: 'V3',
     name: 'Script Studio',
     icon: FileText,
@@ -186,27 +180,47 @@ export function Dashboard() {
         {/* Workspace Quick Details */}
         <Card className="border-zinc-800 bg-zinc-900/40">
           <CardHeader>
-            <CardTitle className="text-base">Workspace Status</CardTitle>
-            <CardDescription>Multi-tenant tenant container</CardDescription>
+            <CardTitle className="text-base">Workspace & Engines</CardTitle>
+            <CardDescription>Live active modules</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="space-y-1">
-              <span className="text-xs text-zinc-400">Workspace Name</span>
-              <p className="text-sm font-semibold text-zinc-200">{currentWorkspace?.name}</p>
+            <div className="grid grid-cols-2 gap-2">
+              <Link
+                to="/research"
+                className="p-3 rounded-lg border border-zinc-800 bg-zinc-950/60 hover:border-indigo-500/40 transition-colors group"
+              >
+                <div className="flex items-center justify-between">
+                  <Search className="h-4 w-4 text-indigo-400" />
+                  <Badge variant="primary" className="text-[10px]">V2</Badge>
+                </div>
+                <span className="text-xs font-semibold text-zinc-200 block mt-2 group-hover:text-indigo-300">
+                  Research Lab
+                </span>
+                <span className="text-[11px] text-zinc-500">
+                  {dashboardData?.quickStats?.trendsCount || 0} Trends Tracked
+                </span>
+              </Link>
+
+              <Link
+                to="/ideas"
+                className="p-3 rounded-lg border border-zinc-800 bg-zinc-950/60 hover:border-indigo-500/40 transition-colors group"
+              >
+                <div className="flex items-center justify-between">
+                  <Lightbulb className="h-4 w-4 text-amber-400" />
+                  <Badge variant="primary" className="text-[10px]">V2</Badge>
+                </div>
+                <span className="text-xs font-semibold text-zinc-200 block mt-2 group-hover:text-amber-300">
+                  Idea Studio
+                </span>
+                <span className="text-[11px] text-zinc-500">
+                  {dashboardData?.quickStats?.ideasCount || 0} Ideas Logged
+                </span>
+              </Link>
             </div>
-            <div className="space-y-1">
-              <span className="text-xs text-zinc-400">Slug Identifier</span>
-              <p className="text-xs font-mono text-zinc-400 bg-zinc-900 px-2 py-1 rounded border border-zinc-800">
-                {currentWorkspace?.slug}
-              </p>
-            </div>
-            <div className="space-y-1">
-              <span className="text-xs text-zinc-400">Authorization Level</span>
-              <p className="text-xs font-semibold text-emerald-400">Workspace Owner (Full Control)</p>
-            </div>
-            <div className="space-y-1">
-              <span className="text-xs text-zinc-400">Database Engine</span>
-              <p className="text-xs text-zinc-300">Supabase PostgreSQL + Drizzle ORM</p>
+
+            <div className="space-y-1 pt-1">
+              <span className="text-xs text-zinc-400">AI Intelligence Core</span>
+              <p className="text-xs font-semibold text-indigo-400">Gemini 3.8 Flash (Active)</p>
             </div>
 
             <div className="pt-2 border-t border-zinc-800">
@@ -220,32 +234,67 @@ export function Dashboard() {
         </Card>
       </div>
 
-      {/* Honest Empty States for Modules Scheduled in Upcoming Versions */}
+      {/* Content Workspace: Real Ideas & Upcoming Schedulers */}
       <div className="space-y-4">
-        <div>
-          <h3 className="text-lg font-semibold text-white">Content Workspace</h3>
-          <p className="text-xs text-zinc-400">
-            Real workspace assets and workflows. Displays genuine empty states until future modules are deployed.
-          </p>
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="text-lg font-semibold text-white">Content Workspace</h3>
+            <p className="text-xs text-zinc-400">
+              Active ideas from Idea Studio and upcoming narrative modules.
+            </p>
+          </div>
+          <Link to="/ideas">
+            <Button variant="outline" size="sm" className="text-xs gap-1.5">
+              <span>View All Ideas</span>
+              <ExternalLink className="h-3 w-3" />
+            </Button>
+          </Link>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-          <EmptyState
-            icon={Lightbulb}
-            title="No Content Ideas Yet"
-            description="Idea Studio arrives in Version 2. You will be able to discover trends, curate hook frameworks, and generate AI-scored concepts."
-          />
-          <EmptyState
-            icon={FileText}
-            title="No Video Scripts"
-            description="Script Studio arrives in Version 3. Reusable narrative architectures (PAS, AIDA) and section-level drafting will be available."
-          />
-          <EmptyState
-            icon={Calendar}
-            title="Content Calendar Clean"
-            description="Content Planner arrives in Version 4. Manage publishing dates, pipeline status, and packaging details from one central board."
-          />
-        </div>
+        {dashboardData?.recentIdeas?.length > 0 ? (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {dashboardData.recentIdeas.slice(0, 3).map((idea) => (
+              <Card key={idea.id} className="border-zinc-800 hover:border-zinc-700 transition-all">
+                <CardHeader className="pb-2">
+                  <div className="flex items-center justify-between">
+                    <Badge variant="outline" className="text-[10px] capitalize">
+                      {idea.format}
+                    </Badge>
+                    <span className="text-xs font-bold text-indigo-400">
+                      {Math.round(idea.priorityScore || 75)}/100
+                    </span>
+                  </div>
+                  <CardTitle className="text-sm font-semibold text-zinc-100 line-clamp-1 mt-1">
+                    {idea.title}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="pt-0">
+                  <p className="text-xs text-zinc-400 line-clamp-2">{idea.concept}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <EmptyState
+              icon={Lightbulb}
+              title="No Content Ideas Logged"
+              description="Idea Studio is active! Create your first idea or let Gemini generate viral angles."
+              actionLabel="Open Idea Studio"
+              onAction={() => window.location.assign('/ideas')}
+            />
+            <EmptyState
+              icon={FileText}
+              title="No Video Scripts"
+              description="Script Studio arrives in Version 3. Reusable narrative architectures (PAS, AIDA) and section-level drafting will be available."
+            />
+            <EmptyState
+              icon={Calendar}
+              title="Content Calendar Clean"
+              description="Content Planner arrives in Version 4. Manage publishing dates, pipeline status, and packaging details from one central board."
+            />
+          </div>
+        )}
       </div>
 
       {/* Development Roadmap Cards */}

@@ -14,6 +14,9 @@ import { AiService } from './modules/ai/ai.service.js';
 import userRoutes from './modules/users/user.routes.js';
 import workspaceRoutes from './modules/workspaces/workspace.routes.js';
 import creatorRoutes from './modules/creator/creator.routes.js';
+import researchRoutes from './modules/research/research.routes.js';
+import hookRoutes from './modules/hooks/hook.routes.js';
+import ideaRoutes from './modules/ideas/idea.routes.js';
 
 const app = express();
 
@@ -48,7 +51,7 @@ app.get('/api/v1/health', async (req, res) => {
   return ApiResponse.success(res, {
     status: 'healthy',
     timestamp: new Date().toISOString(),
-    version: '1.0.0',
+    version: '2.0.0',
     uptime: process.uptime(),
     services: {
       database: dbStatus,
@@ -62,6 +65,9 @@ app.get('/api/v1/health', async (req, res) => {
 app.use('/api/v1/users', userRoutes);
 app.use('/api/v1/workspaces', workspaceRoutes);
 app.use('/api/v1/workspaces/:workspaceId', creatorRoutes);
+app.use('/api/v1/workspaces/:workspaceId', researchRoutes);
+app.use('/api/v1/workspaces/:workspaceId', hookRoutes);
+app.use('/api/v1/workspaces/:workspaceId', ideaRoutes);
 
 // Catch-all 404 handler
 app.use((req, res, next) => {

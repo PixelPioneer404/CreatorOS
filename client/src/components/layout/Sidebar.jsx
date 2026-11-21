@@ -26,8 +26,8 @@ const navGroups = [
     title: 'WORKSPACE',
     items: [
       { name: 'Overview', to: '/dashboard', icon: LayoutDashboard, active: true },
-      { name: 'Research Lab', icon: Search, upcomingVersion: 'V2' },
-      { name: 'Idea Studio', icon: Lightbulb, upcomingVersion: 'V2' },
+      { name: 'Research Lab', to: '/research', icon: Search, active: true },
+      { name: 'Idea Studio', to: '/ideas', icon: Lightbulb, active: true },
       { name: 'Script Studio', icon: FileText, upcomingVersion: 'V3' },
       { name: 'Content Planner', icon: Calendar, upcomingVersion: 'V4' },
       { name: 'Publishing Hub', icon: Share2, upcomingVersion: 'V4' },
@@ -88,7 +88,7 @@ export function Sidebar({ isOpen, onClose }) {
             </div>
             <div>
               <span className="font-bold text-sm tracking-tight text-white block">Creator OS</span>
-              <span className="text-[10px] uppercase font-semibold tracking-wider text-indigo-400 block -mt-1">V1 Foundation</span>
+              <span className="text-[10px] uppercase font-semibold tracking-wider text-indigo-400 block -mt-1">V2 Research & Ideas</span>
             </div>
           </div>
           <button

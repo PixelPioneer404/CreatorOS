@@ -1,5 +1,5 @@
 import { getDb, schema } from '../../db/index.js';
-import { eq } from 'drizzle-orm';
+import { eq, desc } from 'drizzle-orm';
 import { ApiError } from '../../utils/api-error.js';
 
 export class CreatorService {
@@ -144,6 +144,26 @@ export class CreatorService {
       .where(eq(schema.creatorProfiles.workspaceId, workspaceId))
       .limit(1);
 
+    // V2: Query real recent ideas and counts
+    let recentIdeas = [];
+    let trendsCount = 0;
+    try {
+      recentIdeas = await db
+        .select()
+        .from(schema.contentIdeas)
+        .where(eq(schema.contentIdeas.workspaceId, workspaceId))
+        .orderBy(desc(schema.contentIdeas.createdAt))
+        .limit(5);
+
+      const trends = await db
+        .select({ id: schema.trendObservations.id })
+        .from(schema.trendObservations)
+        .where(eq(schema.trendObservations.workspaceId, workspaceId));
+      trendsCount = trends.length;
+    } catch {
+      // Table may not exist in non-migrated environments
+    }
+
     return {
       workspace: workspace || { id: workspaceId, name: 'Creator Workspace' },
       creator: creator || {
@@ -154,9 +174,11 @@ export class CreatorService {
         profileConfigured: Boolean(creator?.onboardingCompleted),
         primaryPlatform: creator?.primaryPlatform || 'Not connected',
         primaryNiche: creator?.primaryNiche || 'Not set',
+        ideasCount: recentIdeas.length,
+        trendsCount,
       },
-      // Real empty collections for upcoming modules - no fake data!
-      recentIdeas: [],
+      // Real collections: real ideas from V2, real empty collections for upcoming modules (V3+)
+      recentIdeas,
       recentScripts: [],
       upcomingContent: [],
       recommendations: [],

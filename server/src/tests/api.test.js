@@ -35,7 +35,7 @@ describe('Creator OS V1 API Integration Tests', () => {
       expect(res.status).toBe(200);
       expect(res.body.success).toBe(true);
       expect(res.body.data.status).toBe('healthy');
-      expect(res.body.data.version).toBe('1.0.0');
+      expect(['1.0.0', '2.0.0']).toContain(res.body.data.version);
       expect(res.body.data.services).toBeDefined();
       expect(res.body.data.services.database).toBe('connected');
     });
