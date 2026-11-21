@@ -1,8 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { useLocation } from 'react-router-dom';
+import { useLocation, Link } from 'react-router-dom';
 import { useWorkspaceStore } from '../../store/useWorkspaceStore.js';
 import { useAuthStore } from '../../store/useAuthStore.js';
 import { IdeaService } from '../../services/idea.service.js';
+import { ResearchService } from '../../services/research.service.js';
 import { PageHeader } from '../../components/layout/PageHeader.jsx';
 import { Card, CardHeader, CardTitle, CardDescription, CardContent } from '../../components/ui/card.jsx';
 import { Badge } from '../../components/ui/badge.jsx';
@@ -28,17 +29,36 @@ import {
   Clock,
   Layers,
   ChevronRight,
+  Zap,
+  ArrowRight,
+  Video,
+  Share2,
 } from 'lucide-react';
+
+const SMART_PROMPTS = [
+  'Top 3 Common Mistakes Viewers Make & How to Fix Them',
+  'Contrarian Truth: Why Popular Advice is Dead Wrong',
+  'Step-by-Step 60-Second Tutorial for Beginners',
+  'Before & After Reality: Expectation vs The Truth',
+  'The Underrated Habit That Saves 10 Hours a Week',
+];
 
 export function IdeaStudio() {
   const location = useLocation();
   const { currentWorkspace } = useWorkspaceStore();
   const { creatorProfile } = useAuthStore();
 
+  const activeNiche = creatorProfile?.primaryNiche || 'Fitness';
+  const activeAudience = creatorProfile?.targetAudience || 'Engaged social media audience';
+
   const [ideas, setIdeas] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
+
+  // Trending Radar Suggestions
+  const [trendingInspirations, setTrendingInspirations] = useState([]);
+  const [quickGenerating, setQuickGenerating] = useState(false);
 
   // Filters
   const [statusFilter, setStatusFilter] = useState('all');
@@ -49,8 +69,8 @@ export function IdeaStudio() {
   const [isAiModalOpen, setIsAiModalOpen] = useState(false);
   const [aiGenerating, setAiGenerating] = useState(false);
   const [aiTopic, setAiTopic] = useState('');
-  const [aiNiche, setAiNiche] = useState(creatorProfile?.primaryNiche || 'AI & Tech');
-  const [aiAudience, setAiAudience] = useState(creatorProfile?.targetAudience || '');
+  const [aiNiche, setAiNiche] = useState(activeNiche);
+  const [aiAudience, setAiAudience] = useState(activeAudience);
   const [aiFormat, setAiFormat] = useState('reel');
   const [aiCount, setAiCount] = useState(3);
   const [aiInstructions, setAiInstructions] = useState('');
@@ -63,14 +83,14 @@ export function IdeaStudio() {
     title: '',
     concept: '',
     format: 'reel',
-    niche: creatorProfile?.primaryNiche || '',
-    targetAudience: creatorProfile?.targetAudience || '',
+    niche: activeNiche,
+    targetAudience: activeAudience,
     mainHook: '',
     alternativeHooks: ['', ''],
     audienceProblem: '',
     viewerValue: '',
     cta: '',
-    priorityScore: 80,
+    priorityScore: 82,
     status: 'draft',
     trendId: null,
   });
@@ -79,8 +99,13 @@ export function IdeaStudio() {
   const [scoreModalIdea, setScoreModalIdea] = useState(null);
 
   useEffect(() => {
-    if (creatorProfile?.primaryNiche && !aiNiche) {
+    if (creatorProfile?.primaryNiche) {
       setAiNiche(creatorProfile.primaryNiche);
+      setIdeaFormData((prev) => ({ ...prev, niche: creatorProfile.primaryNiche }));
+    }
+    if (creatorProfile?.targetAudience) {
+      setAiAudience(creatorProfile.targetAudience);
+      setIdeaFormData((prev) => ({ ...prev, targetAudience: creatorProfile.targetAudience }));
     }
   }, [creatorProfile]);
 
@@ -88,19 +113,19 @@ export function IdeaStudio() {
     if (location.state?.prefillTrend) {
       const trend = location.state.prefillTrend;
       setIdeaFormData({
-        title: `How to Leverage ${trend.title}`,
+        title: trend.title || 'Untitled Trend Reel',
         concept: trend.description || '',
         format: 'reel',
-        niche: trend.niche || creatorProfile?.primaryNiche || '',
-        targetAudience: creatorProfile?.targetAudience || '',
+        niche: trend.niche || activeNiche,
+        targetAudience: activeAudience,
         mainHook: trend.hooks?.[0] || '',
         alternativeHooks: trend.hooks?.slice(1) || ['', ''],
         audienceProblem: '',
         viewerValue: '',
         cta: '',
-        priorityScore: Number(trend.opportunityScore) || 80,
+        priorityScore: Number(trend.opportunityScore) || 85,
         status: 'draft',
-        trendId: trend.id,
+        trendId: trend.id || null,
       });
       setIsIdeaModalOpen(true);
     }
@@ -109,6 +134,7 @@ export function IdeaStudio() {
   useEffect(() => {
     if (!currentWorkspace?.id) return;
     loadIdeas();
+    loadTrendingInspirations();
   }, [currentWorkspace?.id, statusFilter, formatFilter, searchQuery]);
 
   const loadIdeas = async () => {
@@ -122,9 +148,44 @@ export function IdeaStudio() {
       setIdeas(data || []);
     } catch (err) {
       console.error('Failed to load ideas:', err);
-      setError('Unable to load ideas. Please check connection.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const loadTrendingInspirations = async () => {
+    try {
+      const data = await ResearchService.getTrendingRadar(currentWorkspace.id, {
+        niche: activeNiche,
+      });
+      setTrendingInspirations(data?.slice(0, 3) || []);
+    } catch (err) {
+      console.error('Failed to load inspirations:', err);
+    }
+  };
+
+  // 1-Click Proactive Idea Generation for the Creator's Niche
+  const handleQuickSuggestForNiche = async () => {
+    setQuickGenerating(true);
+    setError(null);
+    setSuccessMessage(null);
+
+    try {
+      const result = await IdeaService.generateAiIdeas(currentWorkspace.id, {
+        topic: `Current viral video formats and high-retention reel angles in ${activeNiche}`,
+        niche: activeNiche,
+        targetAudience: activeAudience,
+        format: 'reel',
+        count: 3,
+        saveImmediately: true, // Automatically saves to their workspace!
+      });
+
+      setSuccessMessage(`✨ Generated and saved 3 new viral reel ideas tailored for ${activeNiche}!`);
+      loadIdeas();
+    } catch (err) {
+      setError(err.message || 'Generation timed out. Please try again.');
+    } finally {
+      setQuickGenerating(false);
     }
   };
 
@@ -134,14 +195,14 @@ export function IdeaStudio() {
       title: '',
       concept: '',
       format: 'reel',
-      niche: creatorProfile?.primaryNiche || '',
-      targetAudience: creatorProfile?.targetAudience || '',
+      niche: activeNiche,
+      targetAudience: activeAudience,
       mainHook: '',
       alternativeHooks: ['', ''],
       audienceProblem: '',
       viewerValue: '',
       cta: '',
-      priorityScore: 78,
+      priorityScore: 82,
       status: 'draft',
       trendId: null,
     });
@@ -154,8 +215,8 @@ export function IdeaStudio() {
       title: idea.title,
       concept: idea.concept,
       format: idea.format || 'reel',
-      niche: idea.niche || '',
-      targetAudience: idea.targetAudience || '',
+      niche: idea.niche || activeNiche,
+      targetAudience: idea.targetAudience || activeAudience,
       mainHook: idea.mainHook || '',
       alternativeHooks: idea.alternativeHooks || ['', ''],
       audienceProblem: idea.audienceProblem || '',
@@ -219,17 +280,12 @@ export function IdeaStudio() {
 
   const handleGenerateAi = async (e) => {
     e.preventDefault();
-    if (!aiTopic.trim()) {
-      setError('Please provide a topic for AI generation.');
-      return;
-    }
-
     setAiGenerating(true);
     setError(null);
 
     try {
       const result = await IdeaService.generateAiIdeas(currentWorkspace.id, {
-        topic: aiTopic,
+        topic: aiTopic || `Viral content angles in ${aiNiche}`,
         niche: aiNiche,
         targetAudience: aiAudience,
         format: aiFormat,
@@ -240,7 +296,7 @@ export function IdeaStudio() {
 
       setGeneratedBatch(result.ideas || []);
     } catch (err) {
-      setError(err.message || 'Gemini generation failed.');
+      setError(err.message || 'Gemini generation encountered an issue. Please try again.');
     } finally {
       setAiGenerating(false);
     }
@@ -259,12 +315,11 @@ export function IdeaStudio() {
         audienceProblem: item.audienceProblem,
         viewerValue: item.viewerValue,
         cta: item.cta,
-        priorityScore: item.score || 80,
+        priorityScore: item.score || 85,
         scoreExplanation: item.scoreExplanation,
         status: 'draft',
       });
 
-      // Remove from generated batch
       setGeneratedBatch((prev) => prev.filter((i) => i.title !== item.title));
       loadIdeas();
       setSuccessMessage(`Saved "${item.title}" to Idea Studio!`);
@@ -280,24 +335,11 @@ export function IdeaStudio() {
     return 'text-amber-400 bg-amber-500/10 border-amber-500/30';
   };
 
-  const getStatusBadge = (status) => {
-    const map = {
-      draft: { variant: 'default', label: 'Draft' },
-      in_progress: { variant: 'primary', label: 'In Progress' },
-      scripted: { variant: 'success', label: 'Scripted' },
-      produced: { variant: 'primary', label: 'Produced' },
-      published: { variant: 'success', label: 'Published' },
-      archived: { variant: 'outline', label: 'Archived' },
-    };
-    const s = map[status] || { variant: 'default', label: status };
-    return <Badge variant={s.variant}>{s.label}</Badge>;
-  };
-
   return (
     <div className="space-y-6">
       <PageHeader
         title="Idea Studio"
-        description="Brainstorm, organize, and evaluate high-performing content concepts with explainable prioritization."
+        description="Organize, brainstorm, and score viral video concepts with explainable prioritization."
         actions={
           <div className="flex items-center gap-2">
             <Button
@@ -307,7 +349,7 @@ export function IdeaStudio() {
               className="gap-2 border-indigo-500/40 text-indigo-300 hover:bg-indigo-950/40"
             >
               <Sparkles className="h-4 w-4 text-indigo-400" />
-              Generate with AI
+              Custom AI Brainstorm
             </Button>
             <Button
               variant="primary"
@@ -325,9 +367,108 @@ export function IdeaStudio() {
       {error && <AlertBanner type="error" message={error} onDismiss={() => setError(null)} />}
       {successMessage && <AlertBanner type="success" message={successMessage} onDismiss={() => setSuccessMessage(null)} />}
 
+      {/* Proactive 1-Click Suggestion Banner */}
+      <div className="p-4 rounded-xl border border-indigo-500/30 bg-gradient-to-r from-indigo-950/40 via-zinc-900/60 to-purple-950/40 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">
+              Active Creator Niche: {activeNiche}
+            </span>
+          </div>
+          <h3 className="text-sm font-bold text-zinc-100">
+            Need inspiration right now? Let Creator OS auto-generate 3 viral reel concepts.
+          </h3>
+          <p className="text-xs text-zinc-400">
+            Trained on top vertical video retention curves, psychological hooks, and clear CTAs.
+          </p>
+        </div>
+
+        <Button
+          variant="primary"
+          onClick={handleQuickSuggestForNiche}
+          disabled={quickGenerating}
+          className="shrink-0 gap-2 shadow-lg shadow-indigo-600/25 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold"
+        >
+          {quickGenerating ? (
+            <>
+              <Spinner className="h-4 w-4" />
+              Generating Viral Concepts...
+            </>
+          ) : (
+            <>
+              <Sparkles className="h-4 w-4 text-amber-300" />
+              ✨ Suggest Viral Ideas for {activeNiche}
+            </>
+          )}
+        </Button>
+      </div>
+
+      {/* Trending Angles Inspiration Shelf */}
+      {trendingInspirations.length > 0 && (
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <h4 className="text-xs font-bold uppercase tracking-wider text-zinc-400 flex items-center gap-1.5">
+              <Flame className="h-3.5 w-3.5 text-amber-400" />
+              Breakout Trend Angles in {activeNiche} (1-Click Add)
+            </h4>
+            <Link to="/research" className="text-xs text-indigo-400 hover:underline flex items-center gap-1">
+              View Full Trend Radar <ArrowRight className="h-3 w-3" />
+            </Link>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+            {trendingInspirations.map((item) => (
+              <div
+                key={item.id}
+                className="p-3 rounded-xl border border-zinc-800 bg-zinc-900/40 hover:border-zinc-700 transition-all flex flex-col justify-between space-y-2"
+              >
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <span className="text-[10px] font-bold text-indigo-400 uppercase">{item.platform}</span>
+                    <Badge variant="success" className="text-[10px]">{item.momentum}</Badge>
+                  </div>
+                  <h5 className="text-xs font-bold text-zinc-100 line-clamp-1">{item.title}</h5>
+                  <p className="text-[11px] text-zinc-400 line-clamp-2 mt-1 italic">
+                    Hook: "{item.sampleHook}"
+                  </p>
+                </div>
+
+                <div className="pt-2 flex justify-end">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      setIdeaFormData({
+                        title: item.title,
+                        concept: item.whyItWorks,
+                        format: 'reel',
+                        niche: activeNiche,
+                        targetAudience: activeAudience,
+                        mainHook: item.sampleHook,
+                        alternativeHooks: [],
+                        audienceProblem: '',
+                        viewerValue: '',
+                        cta: '',
+                        priorityScore: item.opportunityScore || 90,
+                        status: 'draft',
+                        trendId: null,
+                      });
+                      setIsIdeaModalOpen(true);
+                    }}
+                    className="text-xs h-7 gap-1"
+                  >
+                    <Plus className="h-3 w-3" />
+                    Turn into Idea
+                  </Button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       {/* Filter and Search Bar */}
-      <div className="flex flex-col lg:flex-row gap-4 items-stretch lg:items-center justify-between">
-        {/* Status Pills */}
+      <div className="flex flex-col lg:flex-row gap-4 items-stretch lg:items-center justify-between pt-2">
         <div className="flex flex-wrap gap-1.5">
           {['all', 'draft', 'in_progress', 'scripted', 'produced', 'published', 'archived'].map((status) => (
             <button
@@ -335,7 +476,7 @@ export function IdeaStudio() {
               onClick={() => setStatusFilter(status)}
               className={`px-3 py-1 rounded-full text-xs font-medium capitalize transition-colors ${
                 statusFilter === status
-                  ? 'bg-indigo-600 text-white'
+                  ? 'bg-indigo-600 text-white font-semibold'
                   : 'bg-zinc-900 text-zinc-400 hover:bg-zinc-800 hover:text-zinc-200 border border-zinc-800'
               }`}
             >
@@ -344,7 +485,6 @@ export function IdeaStudio() {
           ))}
         </div>
 
-        {/* Format Filter & Search */}
         <div className="flex items-center gap-2.5">
           <Select
             value={formatFilter}
@@ -377,9 +517,9 @@ export function IdeaStudio() {
         <EmptyState
           icon={Lightbulb}
           title="No content ideas found"
-          description="Create your first idea manually or let Gemini 3.8 Flash brainstorm viral video concepts for you."
-          actionLabel="Generate with AI"
-          onAction={() => setIsAiModalOpen(true)}
+          description={`Click 'Suggest Viral Ideas' above or pick one of the trending formats from ${activeNiche}.`}
+          actionLabel="Suggest Viral Ideas Now"
+          onAction={handleQuickSuggestForNiche}
         />
       ) : (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -388,7 +528,7 @@ export function IdeaStudio() {
             return (
               <Card
                 key={idea.id}
-                className="border-zinc-800/80 hover:border-zinc-700 transition-all flex flex-col justify-between"
+                className="border-zinc-800/80 hover:border-zinc-700 bg-zinc-900/50 hover:bg-zinc-900/80 transition-all flex flex-col justify-between"
               >
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between gap-2">
@@ -410,10 +550,10 @@ export function IdeaStudio() {
                     </button>
                   </div>
 
-                  <CardTitle className="text-base text-zinc-100 mt-2 leading-snug line-clamp-2">
+                  <CardTitle className="text-base text-zinc-100 mt-2 leading-snug line-clamp-2 font-bold">
                     {idea.title}
                   </CardTitle>
-                  <CardDescription className="text-xs text-zinc-400 mt-1 line-clamp-2">
+                  <CardDescription className="text-xs text-zinc-300 mt-1 line-clamp-2">
                     {idea.concept}
                   </CardDescription>
                 </CardHeader>
@@ -421,12 +561,12 @@ export function IdeaStudio() {
                 <CardContent className="space-y-3 pt-0">
                   {/* Hook highlight */}
                   {idea.mainHook && (
-                    <div className="p-2.5 rounded-lg bg-zinc-950/70 border border-zinc-800/80 text-xs">
-                      <span className="text-[10px] uppercase font-bold tracking-wider text-indigo-400 block mb-1 flex items-center gap-1">
+                    <div className="p-2.5 rounded-lg bg-zinc-950/80 border border-zinc-800 text-xs">
+                      <span className="text-[10px] uppercase font-bold tracking-wider text-amber-400 block mb-1 flex items-center gap-1">
                         <Flame className="h-3 w-3" />
-                        Main Hook
+                        First 3 Seconds Hook:
                       </span>
-                      <p className="text-zinc-200 line-clamp-2 italic">"{idea.mainHook}"</p>
+                      <p className="text-zinc-100 line-clamp-2 font-medium italic">"{idea.mainHook}"</p>
                     </div>
                   )}
 
@@ -490,16 +630,16 @@ export function IdeaStudio() {
             </div>
 
             <p className="text-xs text-zinc-400 leading-normal">
-              Creator OS evaluates each idea across 5 performance vectors to prevent creator fatigue and maximize audience retention:
+              Creator OS evaluates each idea across 5 performance vectors to maximize watch time and prevent creative burnout:
             </p>
 
             <div className="space-y-3 pt-2">
               {[
-                { label: 'Niche Relevance', val: scoreModalIdea.scoreExplanation?.nicheRelevance ?? 80, desc: 'Alignment with target creator niche' },
-                { label: 'Audience Interest', val: scoreModalIdea.scoreExplanation?.audienceInterest ?? 85, desc: 'Predicted viewer hook retention' },
-                { label: 'Uniqueness', val: scoreModalIdea.scoreExplanation?.uniqueness ?? 75, desc: 'Differentiation from saturated competitors' },
-                { label: 'Format Suitability', val: scoreModalIdea.scoreExplanation?.formatSuitability ?? 90, desc: 'Optimal pacing for chosen format' },
-                { label: 'Research Support', val: scoreModalIdea.scoreExplanation?.researchSupport ?? 75, desc: 'Validated evidence from trending topics' },
+                { label: 'Niche Relevance', val: scoreModalIdea.scoreExplanation?.nicheRelevance ?? 85, desc: 'Alignment with target creator niche' },
+                { label: 'Audience Interest', val: scoreModalIdea.scoreExplanation?.audienceInterest ?? 88, desc: 'Predicted viewer hook retention' },
+                { label: 'Uniqueness', val: scoreModalIdea.scoreExplanation?.uniqueness ?? 80, desc: 'Differentiation from saturated competitors' },
+                { label: 'Format Suitability', val: scoreModalIdea.scoreExplanation?.formatSuitability ?? 90, desc: 'Optimal pacing for vertical video' },
+                { label: 'Research Support', val: scoreModalIdea.scoreExplanation?.researchSupport ?? 80, desc: 'Validated evidence from trending topics' },
               ].map((dim, i) => (
                 <div key={i} className="space-y-1">
                   <div className="flex justify-between text-xs">
@@ -536,8 +676,8 @@ export function IdeaStudio() {
                   <Sparkles className="h-4 w-4" />
                 </div>
                 <div>
-                  <h3 className="text-base font-bold text-zinc-100">Brainstorm with Gemini 3.8 Flash</h3>
-                  <p className="text-xs text-zinc-400">Generate structured video concepts with hooks and scores.</p>
+                  <h3 className="text-base font-bold text-zinc-100">AI Concept Brainstorm</h3>
+                  <p className="text-xs text-zinc-400">Powered by Gemini with structured retention analysis.</p>
                 </div>
               </div>
               <Button
@@ -552,12 +692,29 @@ export function IdeaStudio() {
               </Button>
             </div>
 
+            {/* Smart Prompt Presets */}
+            <div className="space-y-1.5">
+              <span className="text-xs font-semibold text-zinc-400">Quick Prompt Templates:</span>
+              <div className="flex flex-wrap gap-1.5">
+                {SMART_PROMPTS.map((prompt) => (
+                  <button
+                    key={prompt}
+                    type="button"
+                    onClick={() => setAiTopic(prompt)}
+                    className="text-[11px] px-2.5 py-1 rounded-full bg-zinc-950 border border-zinc-800 text-zinc-300 hover:border-indigo-500/40 hover:text-indigo-300 transition-colors"
+                  >
+                    + {prompt}
+                  </button>
+                ))}
+              </div>
+            </div>
+
             <form onSubmit={handleGenerateAi} className="space-y-3">
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-zinc-300">Focus Topic / Core Theme *</label>
                 <Input
                   required
-                  placeholder="e.g. 5 AI productivity automations for solo founders"
+                  placeholder={`e.g. 3 high-protein meal prep recipes for ${activeNiche}`}
                   value={aiTopic}
                   onChange={(e) => setAiTopic(e.target.value)}
                 />
@@ -567,7 +724,6 @@ export function IdeaStudio() {
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-zinc-300">Creator Niche</label>
                   <Input
-                    placeholder="e.g. AI & Tech"
                     value={aiNiche}
                     onChange={(e) => setAiNiche(e.target.value)}
                   />
@@ -589,15 +745,6 @@ export function IdeaStudio() {
                     <option value="5">5 Ideas</option>
                   </Select>
                 </div>
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-semibold text-zinc-300">Additional Directives (Optional)</label>
-                <Input
-                  placeholder="e.g. Focus on high curiosity hooks and counter-intuitive examples"
-                  value={aiInstructions}
-                  onChange={(e) => setAiInstructions(e.target.value)}
-                />
               </div>
 
               <div className="flex justify-end pt-2">
@@ -633,12 +780,12 @@ export function IdeaStudio() {
                       <div className="flex items-start justify-between gap-2">
                         <h5 className="text-sm font-bold text-zinc-100">{item.title}</h5>
                         <Badge variant="primary" className="text-xs font-bold font-mono">
-                          {item.score || 80}/100
+                          {item.score || 85}/100
                         </Badge>
                       </div>
                       <p className="text-xs text-zinc-300">{item.concept}</p>
                       {item.hook && (
-                        <p className="text-xs text-indigo-300 italic bg-zinc-900/60 p-2 rounded">
+                        <p className="text-xs text-amber-300 italic bg-zinc-900/60 p-2 rounded">
                           Hook: "{item.hook}"
                         </p>
                       )}
@@ -675,7 +822,7 @@ export function IdeaStudio() {
                 <label className="text-xs font-semibold text-zinc-300">Idea Title *</label>
                 <Input
                   required
-                  placeholder="e.g. 3 Local AI Tools You Can Run Offline"
+                  placeholder="e.g. 3 Gym Mistakes Hurting Your Gains"
                   value={ideaFormData.title}
                   onChange={(e) => setIdeaFormData({ ...ideaFormData, title: e.target.value })}
                 />
@@ -735,7 +882,7 @@ export function IdeaStudio() {
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-zinc-300">Audience Problem Solved</label>
                   <Input
-                    placeholder="e.g. High API costs for AI"
+                    placeholder="e.g. Elbow pain on bench press"
                     value={ideaFormData.audienceProblem}
                     onChange={(e) => setIdeaFormData({ ...ideaFormData, audienceProblem: e.target.value })}
                   />
@@ -743,7 +890,7 @@ export function IdeaStudio() {
                 <div className="space-y-1">
                   <label className="text-xs font-semibold text-zinc-300">Call to Action (CTA)</label>
                   <Input
-                    placeholder="e.g. Comment OFFLINE for links"
+                    placeholder="e.g. Save this for your next chest day"
                     value={ideaFormData.cta}
                     onChange={(e) => setIdeaFormData({ ...ideaFormData, cta: e.target.value })}
                   />

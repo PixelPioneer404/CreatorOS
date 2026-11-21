@@ -12,7 +12,7 @@ export class GeminiProvider extends BaseAiProvider {
   }
 
   getModel() {
-    return process.env.AI_MODEL || config.AI_MODEL || 'gemini-3.8-flash';
+    return process.env.AI_MODEL || config.AI_MODEL || 'gemini-3-flash-preview';
   }
 
   isConfigured() {
@@ -26,53 +26,80 @@ export class GeminiProvider extends BaseAiProvider {
     }
 
     const apiKey = this.getKey();
-    const model = this.getModel();
+    const configuredModel = this.getModel();
+    // Fast-responding reliable candidate models in priority order
+    const candidateModels = [
+      'gemini-3-flash-preview',
+      configuredModel,
+      'gemini-3.1-flash-lite',
+      'gemini-3.8-flash',
+    ].filter((m, i, arr) => arr.indexOf(m) === i); // unique
 
     const generationConfig = { temperature };
     if (responseFormat === 'json') {
       generationConfig.responseMimeType = 'application/json';
     }
 
-    // Provider call implementation with timeout
-    let response;
-    try {
-      response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            systemInstruction: { parts: [{ text: systemPrompt }] },
-            contents: [{ parts: [{ text: userPrompt }] }],
-            generationConfig,
-          }),
-          signal: AbortSignal.timeout(15000),
+    let lastError = null;
+
+    for (const model of candidateModels) {
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 20000); // 20s per candidate
+
+        const response = await fetch(
+          `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+          {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              systemInstruction: { parts: [{ text: systemPrompt }] },
+              contents: [{ parts: [{ text: userPrompt }] }],
+              generationConfig,
+            }),
+            signal: controller.signal,
+          }
+        );
+        clearTimeout(timeoutId);
+
+        if (!response.ok) {
+          const errText = await response.text();
+          // If model is overloaded (503) or not found (404), try next candidate
+          if (response.status === 503 || response.status === 404 || response.status === 429) {
+            lastError = new Error(`Model ${model} returned ${response.status}: ${errText}`);
+            continue;
+          }
+          throw new AiAdapterError(`Gemini API error (${response.status}): ${errText}`);
         }
-      );
-    } catch (netErr) {
-      if (netErr.name === 'TimeoutError' || netErr.name === 'AbortError') {
-        throw AiAdapterError.timeout(task);
+
+        const data = await response.json();
+        const text = data?.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!text) {
+          throw new AiAdapterError('Gemini API returned an empty completion.');
+        }
+
+        return {
+          text,
+          metadata: {
+            provider: this.name,
+            model,
+            task,
+            totalTokens: data?.usageMetadata?.totalTokenCount || 0,
+          },
+        };
+      } catch (err) {
+        if (err.name === 'AbortError' || err.name === 'TimeoutError') {
+          lastError = new Error(`Model ${model} timed out`);
+          continue; // Try next fallback model
+        }
+        lastError = err;
       }
-      throw new AiAdapterError(`Network error communicating with AI provider: ${netErr.message}`);
     }
 
-    if (!response.ok) {
-      const errorBody = await response.text();
-      throw new AiAdapterError(`Gemini API error (${response.status}): ${errorBody}`);
+    if (lastError?.message?.includes('timed out')) {
+      throw AiAdapterError.timeout(task);
     }
-
-    const json = await response.json();
-    const candidateText = json.candidates?.[0]?.content?.parts?.[0]?.text || '';
-
-    return {
-      text: candidateText,
-      metadata: {
-        provider: this.name,
-        model,
-        task,
-        totalTokens: json.usageMetadata?.totalTokenCount || 0,
-      },
-    };
+    throw new AiAdapterError(`All AI model candidates failed: ${lastError?.message}`);
   }
 
   async generateStructured({ task, systemPrompt, userPrompt, schema, temperature = 0.3 }) {

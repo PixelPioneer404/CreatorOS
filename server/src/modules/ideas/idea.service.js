@@ -4,26 +4,37 @@ import { ApiError } from '../../utils/api-error.js';
 import { AiService } from '../ai/ai.service.js';
 import { z } from 'zod';
 
-const ideasGenerationOutputSchema = z.object({
-  ideas: z.array(z.object({
-    title: z.string(),
-    concept: z.string(),
-    hook: z.string(),
-    alternativeHooks: z.array(z.string()).default([]),
-    format: z.string().default('reel'),
-    audienceProblem: z.string().optional().default(''),
-    viewerValue: z.string().optional().default(''),
-    cta: z.string().optional().default(''),
-    score: z.number().min(0).max(100).default(75),
-    scoreExplanation: z.object({
-      nicheRelevance: z.number().default(80),
-      audienceInterest: z.number().default(80),
-      uniqueness: z.number().default(75),
-      formatSuitability: z.number().default(85),
-      researchSupport: z.number().default(75),
-    }).default({}),
-  })),
+const singleIdeaSchema = z.object({
+  title: z.string().default('Untitled Video Concept'),
+  concept: z.string().default(''),
+  hook: z.string().default(''),
+  alternativeHooks: z.array(z.string()).catch([]).default([]),
+  format: z.string().default('reel'),
+  audienceProblem: z.string().optional().default(''),
+  viewerValue: z.string().optional().default(''),
+  cta: z.string().optional().default(''),
+  score: z.coerce.number().min(0).max(100).default(80),
+  scoreExplanation: z.object({
+    nicheRelevance: z.coerce.number().default(85),
+    audienceInterest: z.coerce.number().default(85),
+    uniqueness: z.coerce.number().default(80),
+    formatSuitability: z.coerce.number().default(90),
+    researchSupport: z.coerce.number().default(75),
+  }).catch({
+    nicheRelevance: 85,
+    audienceInterest: 85,
+    uniqueness: 80,
+    formatSuitability: 90,
+    researchSupport: 75,
+  }),
 });
+
+const ideasGenerationOutputSchema = z.union([
+  z.object({
+    ideas: z.array(singleIdeaSchema),
+  }),
+  z.array(singleIdeaSchema).transform((arr) => ({ ideas: arr })),
+]);
 
 export class IdeaService {
   static async listIdeas(workspaceId, { status, niche, format, search } = {}) {

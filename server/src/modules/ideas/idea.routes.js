@@ -42,8 +42,8 @@ const updateIdeaSchema = z.object({
 });
 
 const generateIdeasSchema = z.object({
-  topic: z.string().min(1, 'Topic is required'),
-  niche: z.string().min(1, 'Niche is required'),
+  topic: z.string().optional().default('Trending breakout concepts and viral video ideas'),
+  niche: z.string().optional().default('General'),
   targetAudience: z.string().optional(),
   format: z.string().default('reel'),
   count: z.number().int().min(1).max(10).default(3),

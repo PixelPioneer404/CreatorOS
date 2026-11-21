@@ -24,29 +24,48 @@ import {
   Plus,
   Trash2,
   ExternalLink,
-  Filter,
-  Lightbulb,
-  Layers,
-  ArrowRight,
-  BarChart3,
   Flame,
-  Activity,
+  ArrowRight,
+  Zap,
+  Compass,
+  Video,
+  Share2,
+  HelpCircle,
+  RefreshCw,
+  ChevronDown,
+  Layers,
 } from 'lucide-react';
+
+const NICHE_QUICK_TAGS = {
+  fitness: ['#GymRealism', '#FormCheck', '#HighProtein', '#JointHealth', '#HybridAthlete', '#QuickMeals'],
+  tech: ['#LocalAI', '#OpenSource', '#AICoding', '#DeskSetup', '#DevTools', '#NoCode'],
+  business: ['#PricingAudit', '#DigitalProducts', '#SoloFounder', '#SideHustle', '#AgencyGrowth'],
+  productivity: ['#DopamineDetox', '#DeepWork', '#MinimalistSetup', '#MorningRoutine', '#SecondBrain'],
+  general: ['#CreatorHacks', '#HookFirst', '#BehindTheScenes', '#ViralFormat', '#Productivity'],
+};
 
 export function ResearchLab() {
   const navigate = useNavigate();
   const { currentWorkspace } = useWorkspaceStore();
   const { creatorProfile } = useAuthStore();
 
-  const [activeTab, setActiveTab] = useState('discovery'); // 'discovery' | 'trends' | 'hooks' | 'sources'
+  const activeNiche = creatorProfile?.primaryNiche || 'Fitness';
+  const activePlatform = creatorProfile?.primaryPlatform || 'Instagram Reels';
+
+  const [activeTab, setActiveTab] = useState('radar'); // 'radar' | 'ai_deep_dive' | 'trends' | 'hooks' | 'sources'
   const [loading, setLoading] = useState(false);
+  const [radarLoading, setRadarLoading] = useState(false);
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
 
-  // Discovery State
+  // Live Trend Radar State
+  const [radarTrends, setRadarTrends] = useState([]);
+  const [radarFilterPlatform, setRadarFilterPlatform] = useState('all');
+
+  // AI Deep Dive State
   const [topic, setTopic] = useState('');
-  const [niche, setNiche] = useState(creatorProfile?.primaryNiche || 'AI & Tech');
-  const [targetAudience, setTargetAudience] = useState(creatorProfile?.targetAudience || '');
+  const [niche, setNiche] = useState(activeNiche);
+  const [targetAudience, setTargetAudience] = useState(creatorProfile?.targetAudience || 'General audience');
   const [platform, setPlatform] = useState('instagram');
   const [researchResult, setResearchResult] = useState(null);
 
@@ -58,9 +77,9 @@ export function ResearchLab() {
   const [manualTrendData, setManualTrendData] = useState({
     title: '',
     description: '',
-    niche: '',
+    niche: activeNiche,
     status: 'emerging',
-    opportunityScore: 80,
+    opportunityScore: 85,
   });
 
   // Hooks State
@@ -72,7 +91,7 @@ export function ResearchLab() {
   const [manualHookData, setManualHookData] = useState({
     text: '',
     category: 'curiosity',
-    niche: '',
+    niche: activeNiche,
     performanceNotes: '',
   });
 
@@ -87,20 +106,38 @@ export function ResearchLab() {
   });
 
   useEffect(() => {
-    if (creatorProfile?.primaryNiche && !topic) {
+    if (creatorProfile?.primaryNiche) {
       setNiche(creatorProfile.primaryNiche);
+      setManualTrendData((prev) => ({ ...prev, niche: creatorProfile.primaryNiche }));
+      setManualHookData((prev) => ({ ...prev, niche: creatorProfile.primaryNiche }));
     }
-    if (creatorProfile?.targetAudience && !targetAudience) {
+    if (creatorProfile?.targetAudience) {
       setTargetAudience(creatorProfile.targetAudience);
     }
   }, [creatorProfile]);
 
   useEffect(() => {
     if (!currentWorkspace?.id) return;
+    loadRadar();
     loadTrends();
     loadHooks();
     loadSources();
-  }, [currentWorkspace?.id, trendStatusFilter, trendSearch, hookCategoryFilter, hookSearch]);
+  }, [currentWorkspace?.id, trendStatusFilter, trendSearch, hookCategoryFilter, hookSearch, radarFilterPlatform]);
+
+  const loadRadar = async () => {
+    try {
+      setRadarLoading(true);
+      const data = await ResearchService.getTrendingRadar(currentWorkspace.id, {
+        niche: activeNiche,
+        platform: radarFilterPlatform,
+      });
+      setRadarTrends(data || []);
+    } catch (err) {
+      console.error('Failed to load radar trends:', err);
+    } finally {
+      setRadarLoading(false);
+    }
+  };
 
   const loadTrends = async () => {
     try {
@@ -135,34 +172,76 @@ export function ResearchLab() {
     }
   };
 
-  const handleStartResearch = async (e) => {
-    e.preventDefault();
-    if (!topic.trim()) {
-      setError('Please provide a topic or theme to research.');
-      return;
-    }
+  // 1-Click Auto Scan for creator's niche
+  const handleAutoScanNiche = async () => {
+    setLoading(true);
+    setError(null);
+    setSuccessMessage(null);
+    setActiveTab('ai_deep_dive');
 
+    const scanTopic = `Current breakout reel topics and viral formats in ${activeNiche}`;
+    setTopic(scanTopic);
+
+    try {
+      const result = await ResearchService.startResearch(currentWorkspace.id, {
+        topic: scanTopic,
+        niche: activeNiche,
+        targetAudience: targetAudience || 'Active social media audience',
+        platform: 'instagram',
+      });
+
+      setResearchResult(result);
+      setSuccessMessage(`AI Trend Radar scan completed for ${activeNiche}!`);
+      loadTrends();
+      loadSources();
+    } catch (err) {
+      setError(err.message || 'AI Trend scan timed out. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleStartCustomResearch = async (e) => {
+    if (e) e.preventDefault();
     setLoading(true);
     setError(null);
     setSuccessMessage(null);
 
+    const queryTopic = topic.trim() || `Breakout trends in ${niche || activeNiche}`;
+
     try {
       const result = await ResearchService.startResearch(currentWorkspace.id, {
-        topic,
-        niche: niche || 'General',
-        targetAudience: targetAudience || 'Content Creators',
+        topic: queryTopic,
+        niche: niche || activeNiche,
+        targetAudience: targetAudience || 'Viewers seeking actionable content',
         platform,
       });
 
       setResearchResult(result);
-      setSuccessMessage('Research synthesis completed successfully!');
-      // Refresh trends and sources lists
+      setSuccessMessage('Trend discovery analysis completed!');
       loadTrends();
       loadSources();
     } catch (err) {
-      setError(err.message || 'Failed to complete research synthesis.');
+      setError(err.message || 'AI trend analysis encountered an issue. Please try again.');
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleSaveRadarToTracked = async (item) => {
+    try {
+      await ResearchService.createTrend(currentWorkspace.id, {
+        title: item.title,
+        description: `${item.whyItWorks} Angle: ${item.angle}`,
+        niche: activeNiche,
+        status: 'emerging',
+        opportunityScore: item.opportunityScore || 90,
+        evidence: [{ platform: item.platform, hook: item.sampleHook, momentum: item.momentum }],
+      });
+      loadTrends();
+      setSuccessMessage(`Saved "${item.title}" to Tracked Trends!`);
+    } catch (err) {
+      setError(err.message);
     }
   };
 
@@ -171,12 +250,12 @@ export function ResearchLab() {
     try {
       await ResearchService.createTrend(currentWorkspace.id, {
         ...manualTrendData,
-        opportunityScore: Number(manualTrendData.opportunityScore) || 75,
+        opportunityScore: Number(manualTrendData.opportunityScore) || 80,
       });
       setIsManualTrendModalOpen(false);
-      setManualTrendData({ title: '', description: '', niche: '', status: 'emerging', opportunityScore: 80 });
+      setManualTrendData({ title: '', description: '', niche: activeNiche, status: 'emerging', opportunityScore: 85 });
       loadTrends();
-      setSuccessMessage('Trend observation saved!');
+      setSuccessMessage('Trend observation tracked!');
     } catch (err) {
       setError(err.message);
     }
@@ -192,7 +271,7 @@ export function ResearchLab() {
   };
 
   const handleDeleteTrend = async (trendId) => {
-    if (!confirm('Are you sure you want to remove this trend observation?')) return;
+    if (!confirm('Remove this trend observation?')) return;
     try {
       await ResearchService.deleteTrend(currentWorkspace.id, trendId);
       loadTrends();
@@ -206,7 +285,7 @@ export function ResearchLab() {
     try {
       await HookService.createHook(currentWorkspace.id, manualHookData);
       setIsManualHookModalOpen(false);
-      setManualHookData({ text: '', category: 'curiosity', niche: '', performanceNotes: '' });
+      setManualHookData({ text: '', category: 'curiosity', niche: activeNiche, performanceNotes: '' });
       loadHooks();
       setSuccessMessage('Custom hook added to your intelligence library!');
     } catch (err) {
@@ -215,7 +294,7 @@ export function ResearchLab() {
   };
 
   const handleDeleteHook = async (hookId) => {
-    if (!confirm('Are you sure you want to delete this hook?')) return;
+    if (!confirm('Delete this hook?')) return;
     try {
       await HookService.deleteHook(currentWorkspace.id, hookId);
       loadHooks();
@@ -243,39 +322,50 @@ export function ResearchLab() {
     }
   };
 
-  const getStatusBadge = (status) => {
-    const map = {
-      emerging: { variant: 'primary', label: 'Emerging' },
-      rising: { variant: 'success', label: 'Rising' },
-      established: { variant: 'default', label: 'Established' },
-      declining: { variant: 'upcoming', label: 'Declining' },
-      saturated: { variant: 'outline', label: 'Saturated' },
-    };
-    const s = map[status] || { variant: 'default', label: status };
-    return <Badge variant={s.variant}>{s.label}</Badge>;
+  const getQuickTags = () => {
+    const key = (activeNiche || '').toLowerCase();
+    if (key.includes('fit') || key.includes('gym')) return NICHE_QUICK_TAGS.fitness;
+    if (key.includes('tech') || key.includes('ai') || key.includes('code')) return NICHE_QUICK_TAGS.tech;
+    if (key.includes('biz') || key.includes('finance')) return NICHE_QUICK_TAGS.business;
+    if (key.includes('prod') || key.includes('life')) return NICHE_QUICK_TAGS.productivity;
+    return NICHE_QUICK_TAGS.general;
+  };
+
+  const getPlatformBadge = (platformName) => {
+    if (platformName.toLowerCase().includes('tiktok')) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-pink-500/10 text-pink-400 border border-pink-500/30">
+          <Video className="h-3 w-3" /> TikTok Trend
+        </span>
+      );
+    }
+    if (platformName.toLowerCase().includes('instagram') || platformName.toLowerCase().includes('reel')) {
+      return (
+        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-purple-500/10 text-purple-400 border border-purple-500/30">
+          <Share2 className="h-3 w-3" /> Instagram Reel
+        </span>
+      );
+    }
+    return (
+      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-red-500/10 text-red-400 border border-red-500/30">
+        <Video className="h-3 w-3" /> YouTube Shorts
+      </span>
+    );
   };
 
   return (
     <div className="space-y-6">
       <PageHeader
         title="Research Lab"
-        description="Discover emerging creator trends, monitor content gaps, and search high-converting hooks."
+        description="Discover viral reel trends, breakout creator formats, and high-retention hook intelligence."
         actions={
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setIsManualSourceModalOpen(true)}
-            >
-              <Bookmark className="h-4 w-4 mr-2" />
-              Capture Source
+            <Button variant="outline" size="sm" onClick={() => setIsManualSourceModalOpen(true)}>
+              <Bookmark className="h-4 w-4 mr-1.5" />
+              Save Source
             </Button>
-            <Button
-              variant="primary"
-              size="sm"
-              onClick={() => setIsManualTrendModalOpen(true)}
-            >
-              <Plus className="h-4 w-4 mr-2" />
+            <Button variant="primary" size="sm" onClick={() => setIsManualTrendModalOpen(true)}>
+              <Plus className="h-4 w-4 mr-1.5" />
               Add Trend
             </Button>
           </div>
@@ -285,24 +375,75 @@ export function ResearchLab() {
       {error && <AlertBanner type="error" message={error} onDismiss={() => setError(null)} />}
       {successMessage && <AlertBanner type="success" message={successMessage} onDismiss={() => setSuccessMessage(null)} />}
 
+      {/* Proactive Creator Niche Banner */}
+      <div className="p-4 rounded-xl border border-indigo-500/30 bg-gradient-to-r from-indigo-950/40 via-zinc-900/60 to-purple-950/40 flex flex-col md:flex-row items-start md:items-center justify-between gap-4">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2">
+            <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-indigo-500/20 text-indigo-300 border border-indigo-500/30">
+              Your Intelligence Feed
+            </span>
+            <span className="text-xs text-zinc-400">Tailored to your creative profile</span>
+          </div>
+          <h2 className="text-base font-bold text-zinc-100 flex items-center gap-2">
+            <span>Niche:</span>
+            <span className="text-indigo-400 underline decoration-indigo-500/40">{activeNiche}</span>
+            <span className="text-zinc-600">•</span>
+            <span className="text-xs text-zinc-400 font-normal">Primary Platform: {activePlatform}</span>
+          </h2>
+          <p className="text-xs text-zinc-400">
+            No need to invent topics from scratch. We analyze real breakout signals on TikTok, Reels, and Shorts for you.
+          </p>
+        </div>
+
+        <Button
+          variant="primary"
+          onClick={handleAutoScanNiche}
+          disabled={loading}
+          className="shrink-0 gap-2 shadow-lg shadow-indigo-600/20 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold"
+        >
+          {loading ? (
+            <>
+              <Spinner className="h-4 w-4" />
+              Scanning Breakout Trends...
+            </>
+          ) : (
+            <>
+              <Sparkles className="h-4 w-4 text-amber-300" />
+              1-Click Scan Breakout Trends
+            </>
+          )}
+        </Button>
+      </div>
+
       {/* Navigation Tabs */}
-      <div className="flex border-b border-zinc-800 gap-1">
+      <div className="flex border-b border-zinc-800 gap-1 overflow-x-auto">
         <button
-          onClick={() => setActiveTab('discovery')}
-          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-            activeTab === 'discovery'
-              ? 'border-indigo-500 text-indigo-400'
+          onClick={() => setActiveTab('radar')}
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
+            activeTab === 'radar'
+              ? 'border-indigo-500 text-indigo-400 font-semibold'
               : 'border-transparent text-zinc-400 hover:text-zinc-200'
           }`}
         >
-          <Sparkles className="h-4 w-4" />
-          AI Trend Discovery
+          <Flame className="h-4 w-4 text-amber-400" />
+          Live Trend Radar ({radarTrends.length})
+        </button>
+        <button
+          onClick={() => setActiveTab('ai_deep_dive')}
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
+            activeTab === 'ai_deep_dive'
+              ? 'border-indigo-500 text-indigo-400 font-semibold'
+              : 'border-transparent text-zinc-400 hover:text-zinc-200'
+          }`}
+        >
+          <Sparkles className="h-4 w-4 text-indigo-400" />
+          AI Synthesis & Deep-Dive
         </button>
         <button
           onClick={() => setActiveTab('trends')}
-          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
             activeTab === 'trends'
-              ? 'border-indigo-500 text-indigo-400'
+              ? 'border-indigo-500 text-indigo-400 font-semibold'
               : 'border-transparent text-zinc-400 hover:text-zinc-200'
           }`}
         >
@@ -311,92 +452,219 @@ export function ResearchLab() {
         </button>
         <button
           onClick={() => setActiveTab('hooks')}
-          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
             activeTab === 'hooks'
-              ? 'border-indigo-500 text-indigo-400'
+              ? 'border-indigo-500 text-indigo-400 font-semibold'
               : 'border-transparent text-zinc-400 hover:text-zinc-200'
           }`}
         >
-          <Flame className="h-4 w-4" />
+          <Bookmark className="h-4 w-4 text-emerald-400" />
           Hook Intelligence ({hooks.length})
         </button>
         <button
           onClick={() => setActiveTab('sources')}
-          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+          className={`flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 whitespace-nowrap transition-colors ${
             activeTab === 'sources'
-              ? 'border-indigo-500 text-indigo-400'
+              ? 'border-indigo-500 text-indigo-400 font-semibold'
               : 'border-transparent text-zinc-400 hover:text-zinc-200'
           }`}
         >
-          <Bookmark className="h-4 w-4" />
-          Sources ({sources.length})
+          <Compass className="h-4 w-4 text-blue-400" />
+          Reference Sources ({sources.length})
         </button>
       </div>
 
-      {/* 1. AI Trend Discovery Tab */}
-      {activeTab === 'discovery' && (
+      {/* 1. LIVE TREND RADAR TAB */}
+      {activeTab === 'radar' && (
         <div className="space-y-6">
-          <Card>
+          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
+            <div className="space-y-1">
+              <h3 className="text-sm font-bold text-zinc-200 flex items-center gap-2">
+                <Flame className="h-4 w-4 text-amber-400" />
+                Trending Creator Formats in {activeNiche}
+              </h3>
+              <p className="text-xs text-zinc-400">
+                Identified from viral TikToks, Instagram Reels, and YouTube Shorts. Pick any to build a video idea.
+              </p>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <Select
+                value={radarFilterPlatform}
+                onChange={(e) => setRadarFilterPlatform(e.target.value)}
+                className="text-xs py-1 h-8 w-40"
+              >
+                <option value="all">All Platforms</option>
+                <option value="instagram">Instagram Reels</option>
+                <option value="tiktok">TikTok</option>
+                <option value="youtube">YouTube Shorts</option>
+              </Select>
+            </div>
+          </div>
+
+          {/* Quick Inspiration Tags */}
+          <div className="flex flex-wrap items-center gap-2 pt-1">
+            <span className="text-xs font-semibold text-zinc-500">Trending Hashtags:</span>
+            {getQuickTags().map((tag) => (
+              <button
+                key={tag}
+                onClick={() => {
+                  setTopic(tag.replace('#', ''));
+                  setActiveTab('ai_deep_dive');
+                }}
+                className="px-2.5 py-1 rounded-full text-xs font-medium bg-zinc-900 border border-zinc-800 text-zinc-300 hover:border-indigo-500/40 hover:text-indigo-300 transition-colors"
+              >
+                {tag}
+              </button>
+            ))}
+          </div>
+
+          {/* Radar Cards Grid */}
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {radarTrends.map((item) => (
+              <Card
+                key={item.id}
+                className="border-zinc-800 hover:border-zinc-700 bg-zinc-900/50 hover:bg-zinc-900/80 transition-all flex flex-col justify-between"
+              >
+                <CardHeader className="pb-3">
+                  <div className="flex items-start justify-between gap-2">
+                    {getPlatformBadge(item.platform)}
+                    <Badge variant="success" className="text-[10px] font-mono">
+                      {item.momentum}
+                    </Badge>
+                  </div>
+
+                  <CardTitle className="text-base text-zinc-100 mt-2 font-bold leading-snug">
+                    {item.title}
+                  </CardTitle>
+                  <span className="text-[11px] text-zinc-400 font-medium">Category: {item.category}</span>
+                </CardHeader>
+
+                <CardContent className="space-y-3 pt-0">
+                  {/* Why it works */}
+                  <div className="p-3 rounded-lg bg-zinc-950/70 border border-zinc-800/80 space-y-1.5 text-xs">
+                    <span className="text-[10px] uppercase font-bold text-amber-400 block tracking-wider">
+                      Why Viewers Watch:
+                    </span>
+                    <p className="text-zinc-300">{item.whyItWorks}</p>
+
+                    <div className="pt-1.5 border-t border-zinc-900">
+                      <span className="text-[10px] uppercase font-bold text-indigo-400 block tracking-wider">
+                        Suggested Visual Format:
+                      </span>
+                      <p className="text-zinc-300 font-medium">{item.angle}</p>
+                    </div>
+
+                    {item.sampleHook && (
+                      <div className="pt-1.5 border-t border-zinc-900">
+                        <span className="text-[10px] uppercase font-bold text-emerald-400 block tracking-wider">
+                          Hook to Say in First 3 Seconds:
+                        </span>
+                        <p className="text-zinc-200 italic font-medium">"{item.sampleHook}"</p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Action Buttons */}
+                  <div className="flex items-center justify-between pt-2">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={() => handleSaveRadarToTracked(item)}
+                      className="text-xs text-zinc-400 hover:text-zinc-200"
+                    >
+                      <Bookmark className="h-3.5 w-3.5 mr-1" />
+                      Save Trend
+                    </Button>
+
+                    <Button
+                      size="sm"
+                      variant="primary"
+                      onClick={() => {
+                        navigate('/ideas', {
+                          state: {
+                            prefillTrend: {
+                              title: item.title,
+                              description: item.whyItWorks,
+                              niche: activeNiche,
+                              hooks: [item.sampleHook],
+                              opportunityScore: item.opportunityScore,
+                            },
+                          },
+                        });
+                      }}
+                      className="text-xs gap-1.5 font-semibold bg-indigo-600 hover:bg-indigo-500 text-white"
+                    >
+                      <Zap className="h-3.5 w-3.5 text-amber-300" />
+                      Build Reel Concept
+                      <ArrowRight className="h-3.5 w-3.5 ml-0.5" />
+                    </Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* 2. AI SYNTHESIS & DEEP-DIVE TAB */}
+      {activeTab === 'ai_deep_dive' && (
+        <div className="space-y-6">
+          <Card className="border-zinc-800 bg-zinc-900/40">
             <CardHeader>
               <CardTitle className="text-base flex items-center gap-2">
                 <Sparkles className="h-5 w-5 text-indigo-400" />
-                Synthesize Niche Trends with Gemini
+                Custom AI Trend Synthesis
               </CardTitle>
               <CardDescription>
-                Analyze real content opportunities, saturation levels, and viral video angles powered by Gemini 3.8 Flash.
+                Ask Gemini to deep-dive into any specific topic, audience segment, or emerging format.
               </CardDescription>
             </CardHeader>
             <CardContent>
-              <form onSubmit={handleStartResearch} className="space-y-4">
+              <form onSubmit={handleStartCustomResearch} className="space-y-4">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-1.5 md:col-span-2">
-                    <label className="text-xs font-semibold text-zinc-300">Research Focus Topic or Theme *</label>
+                    <label className="text-xs font-semibold text-zinc-300">
+                      Topic or Creator Question *
+                    </label>
                     <Input
-                      placeholder="e.g. Local AI tools, 60-second video editing workflows, personal finance hacks"
+                      placeholder={`e.g. 5 viral reel formats for ${activeNiche}, or quiet workouts for small apartments`}
                       value={topic}
                       onChange={(e) => setTopic(e.target.value)}
-                      required
                     />
                   </div>
-                  <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-zinc-300">Creator Niche</label>
-                    <Input
-                      placeholder="e.g. AI & Tech, Productivity, Fitness"
-                      value={niche}
-                      onChange={(e) => setNiche(e.target.value)}
-                    />
-                  </div>
+
                   <div className="space-y-1.5">
                     <label className="text-xs font-semibold text-zinc-300">Target Audience</label>
                     <Input
-                      placeholder="e.g. Freelancers, early-stage creators, software developers"
+                      placeholder="e.g. Gym beginners, intermediate lifters, busy parents"
                       value={targetAudience}
                       onChange={(e) => setTargetAudience(e.target.value)}
                     />
                   </div>
+
                   <div className="space-y-1.5">
-                    <label className="text-xs font-semibold text-zinc-300">Primary Platform</label>
+                    <label className="text-xs font-semibold text-zinc-300">Target Platform</label>
                     <Select value={platform} onChange={(e) => setPlatform(e.target.value)}>
                       <option value="instagram">Instagram Reels</option>
                       <option value="tiktok">TikTok</option>
                       <option value="youtube_shorts">YouTube Shorts</option>
                       <option value="youtube_long">YouTube Long-Form</option>
-                      <option value="linkedin">LinkedIn</option>
                     </Select>
                   </div>
                 </div>
 
-                <div className="pt-2 flex justify-end">
+                <div className="flex justify-end gap-2 pt-2">
                   <Button type="submit" variant="primary" disabled={loading} className="gap-2">
                     {loading ? (
                       <>
                         <Spinner className="h-4 w-4" />
-                        Analyzing Landscape...
+                        Analyzing with Gemini...
                       </>
                     ) : (
                       <>
                         <Sparkles className="h-4 w-4" />
-                        Analyze Trends with Gemini
+                        Run Deep-Dive Synthesis
                       </>
                     )}
                   </Button>
@@ -405,25 +673,31 @@ export function ResearchLab() {
             </CardContent>
           </Card>
 
-          {/* Research Synthesis Results */}
+          {/* Synthesis Results */}
           {researchResult && (
             <div className="space-y-6">
-              {/* Executive Summary */}
               <Card className="border-indigo-500/30 bg-indigo-950/20">
                 <CardHeader>
                   <CardTitle className="text-sm font-semibold text-indigo-300 uppercase tracking-wider">
-                    Discovery Summary
+                    Executive Discovery Summary
                   </CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-3">
                   <p className="text-sm text-zinc-200 leading-relaxed">{researchResult.summary}</p>
+
                   {researchResult.contentGaps?.length > 0 && (
                     <div className="pt-2">
-                      <span className="text-xs font-semibold text-zinc-400 block mb-2">Unaddressed Content Gaps:</span>
+                      <span className="text-xs font-semibold text-zinc-400 block mb-2">
+                        Unaddressed Content Gaps in {activeNiche}:
+                      </span>
                       <div className="flex flex-wrap gap-2">
                         {researchResult.contentGaps.map((gap, i) => (
-                          <Badge key={i} variant="outline" className="text-xs bg-zinc-900/80 border-indigo-500/20 text-zinc-300">
-                            {gap}
+                          <Badge
+                            key={i}
+                            variant="outline"
+                            className="text-xs bg-zinc-900/80 border-indigo-500/20 text-zinc-300"
+                          >
+                            💡 {gap}
                           </Badge>
                         ))}
                       </div>
@@ -433,58 +707,73 @@ export function ResearchLab() {
               </Card>
 
               {/* Identified Trends */}
-              <div>
-                <h3 className="text-base font-semibold text-zinc-100 mb-3 flex items-center gap-2">
+              <div className="space-y-3">
+                <h3 className="text-base font-semibold text-zinc-100 flex items-center gap-2">
                   <TrendingUp className="h-4 w-4 text-emerald-400" />
                   Identified Trends ({researchResult.trends?.length || 0})
                 </h3>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {researchResult.trends?.map((t, idx) => (
-                    <Card key={idx} className="border-zinc-800 hover:border-zinc-700 transition-all">
+                    <Card key={idx} className="border-zinc-800 hover:border-zinc-700 transition-all flex flex-col justify-between">
                       <CardHeader className="pb-3">
                         <div className="flex items-start justify-between gap-2">
-                          <CardTitle className="text-base text-zinc-100 leading-snug">{t.title}</CardTitle>
-                          {getStatusBadge(t.status)}
+                          <CardTitle className="text-base text-zinc-100 font-bold leading-snug">
+                            {t.title}
+                          </CardTitle>
+                          <Badge variant="primary" className="text-xs capitalize">
+                            {t.status || 'Emerging'}
+                          </Badge>
                         </div>
-                        <CardDescription className="line-clamp-2 text-xs mt-1">{t.description}</CardDescription>
+                        {t.description && (
+                          <CardDescription className="text-xs mt-1.5 text-zinc-300">
+                            {t.description}
+                          </CardDescription>
+                        )}
                       </CardHeader>
+
                       <CardContent className="space-y-3 pt-0">
-                        {/* Score breakdown bar */}
                         <div className="grid grid-cols-3 gap-2 py-2 px-3 rounded-lg bg-zinc-950/60 border border-zinc-800/80 text-center">
                           <div>
                             <span className="text-[10px] uppercase text-zinc-500 block">Opportunity</span>
-                            <span className="text-sm font-bold text-emerald-400">{t.opportunityScore}%</span>
+                            <span className="text-sm font-bold text-emerald-400">{t.opportunityScore || 85}%</span>
                           </div>
                           <div>
                             <span className="text-[10px] uppercase text-zinc-500 block">Relevance</span>
-                            <span className="text-sm font-bold text-indigo-400">{t.relevanceScore}%</span>
+                            <span className="text-sm font-bold text-indigo-400">{t.relevanceScore || 80}%</span>
                           </div>
                           <div>
                             <span className="text-[10px] uppercase text-zinc-500 block">Saturation</span>
-                            <span className="text-sm font-bold text-amber-400">{t.saturationEstimate}%</span>
+                            <span className="text-sm font-bold text-amber-400">{t.saturationEstimate || 35}%</span>
                           </div>
                         </div>
 
-                        {/* Hooks and angles */}
                         {t.angles?.length > 0 && (
-                          <div className="text-xs space-y-1">
-                            <span className="text-zinc-400 font-semibold">Suggested Angle:</span>
-                            <p className="text-zinc-300 italic">"{t.angles[0]}"</p>
+                          <div className="text-xs space-y-1 bg-zinc-950/40 p-2.5 rounded-lg border border-zinc-800/60">
+                            <span className="text-indigo-400 font-semibold block">Suggested Angle:</span>
+                            <p className="text-zinc-200 italic">"{t.angles[0]}"</p>
+                          </div>
+                        )}
+
+                        {t.hooks?.length > 0 && (
+                          <div className="text-xs space-y-1 bg-zinc-950/40 p-2.5 rounded-lg border border-zinc-800/60">
+                            <span className="text-emerald-400 font-semibold block">Recommended Hook:</span>
+                            <p className="text-zinc-200 italic font-medium">"{t.hooks[0]}"</p>
                           </div>
                         )}
 
                         <div className="pt-2 flex justify-end">
                           <Button
                             size="sm"
-                            variant="outline"
+                            variant="primary"
                             onClick={() => {
                               navigate('/ideas', { state: { prefillTrend: t } });
                             }}
-                            className="text-xs gap-1.5"
+                            className="text-xs gap-1.5 bg-indigo-600 hover:bg-indigo-500 text-white font-semibold"
                           >
-                            <Lightbulb className="h-3.5 w-3.5 text-amber-400" />
-                            Build Idea from Trend
+                            <Zap className="h-3.5 w-3.5 text-amber-300" />
+                            Turn into Idea in Studio
+                            <ArrowRight className="h-3 w-3" />
                           </Button>
                         </div>
                       </CardContent>
@@ -497,11 +786,10 @@ export function ResearchLab() {
         </div>
       )}
 
-      {/* 2. Tracked Trends Tab */}
+      {/* 3. TRACKED TRENDS TAB */}
       {activeTab === 'trends' && (
         <div className="space-y-4">
           <div className="flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center">
-            {/* Filter pills */}
             <div className="flex flex-wrap gap-1.5">
               {['all', 'emerging', 'rising', 'established', 'declining', 'saturated'].map((status) => (
                 <button
@@ -518,7 +806,6 @@ export function ResearchLab() {
               ))}
             </div>
 
-            {/* Search */}
             <div className="w-full sm:w-64">
               <Input
                 placeholder="Search trends..."
@@ -532,18 +819,18 @@ export function ResearchLab() {
             <EmptyState
               icon={TrendingUp}
               title="No tracked trends yet"
-              description="Discover new trends using the AI Trend Discovery tab or log one manually."
+              description="Save high-potential trends from the Live Trend Radar or log your own observations."
               actionLabel="Add Trend"
               onAction={() => setIsManualTrendModalOpen(true)}
             />
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {trends.map((t) => (
-                <Card key={t.id} className="border-zinc-800/80 hover:border-zinc-700 transition-all">
+                <Card key={t.id} className="border-zinc-800/80 hover:border-zinc-700 transition-all flex flex-col justify-between">
                   <CardHeader className="pb-3">
                     <div className="flex items-start justify-between gap-2">
                       <div>
-                        <CardTitle className="text-base text-zinc-100">{t.title}</CardTitle>
+                        <CardTitle className="text-base text-zinc-100 font-bold">{t.title}</CardTitle>
                         {t.niche && <span className="text-xs text-indigo-400 mt-0.5 block">{t.niche}</span>}
                       </div>
                       <Select
@@ -572,9 +859,9 @@ export function ResearchLab() {
                           size="sm"
                           variant="ghost"
                           onClick={() => navigate('/ideas', { state: { prefillTrend: t } })}
-                          className="h-7 text-xs text-indigo-400 hover:text-indigo-300"
+                          className="h-7 text-xs text-indigo-400 hover:text-indigo-300 gap-1"
                         >
-                          <Lightbulb className="h-3.5 w-3.5 mr-1" />
+                          <Zap className="h-3.5 w-3.5" />
                           Ideate
                         </Button>
                         <Button
@@ -595,11 +882,10 @@ export function ResearchLab() {
         </div>
       )}
 
-      {/* 3. Hook Intelligence Tab */}
+      {/* 4. HOOK INTELLIGENCE TAB */}
       {activeTab === 'hooks' && (
         <div className="space-y-4">
           <div className="flex flex-col sm:flex-row gap-3 justify-between items-start sm:items-center">
-            {/* Category Pills */}
             <div className="flex flex-wrap gap-1.5">
               {[
                 { id: 'all', label: 'All' },
@@ -665,8 +951,8 @@ export function ResearchLab() {
                       )}
                     </button>
                   </div>
-                  <p className="text-sm font-medium text-zinc-100 mt-2 leading-relaxed">
-                    {h.text}
+                  <p className="text-sm font-semibold text-zinc-100 mt-2 leading-relaxed">
+                    "{h.text}"
                   </p>
                 </CardHeader>
                 <CardContent className="pt-0">
@@ -692,7 +978,7 @@ export function ResearchLab() {
         </div>
       )}
 
-      {/* 4. Sources Tab */}
+      {/* 5. SOURCES TAB */}
       {activeTab === 'sources' && (
         <div className="space-y-4">
           <div className="flex justify-between items-center">
@@ -755,7 +1041,7 @@ export function ResearchLab() {
                 <label className="text-xs font-semibold text-zinc-300">Trend Title *</label>
                 <Input
                   required
-                  placeholder="e.g. Split-screen gameplay with voice narration"
+                  placeholder="e.g. Split-screen gym form fix breakdown"
                   value={manualTrendData.title}
                   onChange={(e) => setManualTrendData({ ...manualTrendData, title: e.target.value })}
                 />
@@ -818,7 +1104,7 @@ export function ResearchLab() {
                 <Textarea
                   required
                   rows={3}
-                  placeholder="e.g. Stop scrolling if you want to fix [problem] in 30 seconds."
+                  placeholder="e.g. Stop doing [exercise] if you want to avoid [injury]."
                   value={manualHookData.text}
                   onChange={(e) => setManualHookData({ ...manualHookData, text: e.target.value })}
                 />
@@ -852,7 +1138,7 @@ export function ResearchLab() {
               <div className="space-y-1">
                 <label className="text-xs font-semibold text-zinc-300">Performance Notes</label>
                 <Input
-                  placeholder="e.g. Drives high watch time on vertical short-form"
+                  placeholder="e.g. High save rate for tutorial reels"
                   value={manualHookData.performanceNotes}
                   onChange={(e) => setManualHookData({ ...manualHookData, performanceNotes: e.target.value })}
                 />
@@ -880,7 +1166,7 @@ export function ResearchLab() {
                 <label className="text-xs font-semibold text-zinc-300">Title *</label>
                 <Input
                   required
-                  placeholder="e.g. Viral breakdown on Instagram Reels algorithm 2026"
+                  placeholder="e.g. Viral 1M+ view breakdown on high protein prep"
                   value={manualSourceData.title}
                   onChange={(e) => setManualSourceData({ ...manualSourceData, title: e.target.value })}
                 />

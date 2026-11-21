@@ -9,8 +9,8 @@ import { z } from 'zod';
 const router = Router({ mergeParams: true });
 
 const startResearchSchema = z.object({
-  topic: z.string().min(1, 'Research topic is required'),
-  niche: z.string().min(1, 'Niche is required'),
+  topic: z.string().optional().default('Current breakout topics and viral reel formats'),
+  niche: z.string().optional().default('General'),
   targetAudience: z.string().optional(),
   platform: z.string().default('instagram'),
 });
@@ -50,6 +50,7 @@ router.use(requireAuth);
 router.use(requireWorkspaceMember());
 
 // Research Sources endpoints
+router.get('/research/trending-radar', asyncHandler(ResearchController.getTrendingRadar));
 router.get('/research/sources', asyncHandler(ResearchController.listSources));
 router.post('/research/sources', validateRequest({ body: createSourceSchema }), asyncHandler(ResearchController.createSource));
 

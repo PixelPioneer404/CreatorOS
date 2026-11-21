@@ -13,12 +13,25 @@ import { IdeaService } from '../services/idea.service.js';
 
 vi.mock('../services/research.service.js', () => ({
   ResearchService: {
+    getTrendingRadar: vi.fn().mockResolvedValue([
+      {
+        id: 'radar-1',
+        title: 'Biomechanics vs Bro-Science Form Fixes',
+        platform: 'Instagram Reels',
+        category: 'Education & Authority',
+        momentum: '+165% FYP Engagement',
+        opportunityScore: 94,
+        whyItWorks: 'High scroll stop rate on vertical feed',
+        angle: 'Split-screen side-by-side comparison',
+        sampleHook: 'Stop doing lateral raises like this.',
+      },
+    ]),
     listTrends: vi.fn().mockResolvedValue([
       {
         id: 'trend-1',
         title: 'Local AI Voice Cloning',
         description: 'Zero latency voice models for vertical video',
-        niche: 'AI & Tech',
+        niche: 'Fitness',
         status: 'emerging',
         opportunityScore: '92',
       },
@@ -28,9 +41,9 @@ vi.mock('../services/research.service.js', () => ({
     updateTrend: vi.fn().mockResolvedValue({ id: 'trend-1' }),
     deleteTrend: vi.fn().mockResolvedValue({}),
     startResearch: vi.fn().mockResolvedValue({
-      summary: 'High demand for offline video AI tools',
+      summary: 'High demand for evidence-based workouts',
       trends: [],
-      contentGaps: ['Privacy-first video editing'],
+      contentGaps: ['Joint longevity prehab'],
     }),
   },
 }));
@@ -94,8 +107,9 @@ describe('V2 Feature Component Tests', () => {
     });
     useAuthStore.setState({
       creatorProfile: {
-        primaryNiche: 'AI & Tech',
-        targetAudience: 'Solo Creators',
+        primaryNiche: 'Fitness',
+        targetAudience: 'Gym Beginners',
+        primaryPlatform: 'Instagram Reels',
       },
     });
   });
@@ -127,7 +141,7 @@ describe('V2 Feature Component Tests', () => {
   });
 
   describe('2. Research Lab Feature', () => {
-    it('renders tabs and AI Trend Discovery prompt controls', async () => {
+    it('renders tabs, 1-click scan button, and live trend radar feed', async () => {
       render(
         <MemoryRouter>
           <ResearchLab />
@@ -135,14 +149,19 @@ describe('V2 Feature Component Tests', () => {
       );
 
       // Verify tabs exist
-      expect(screen.getByRole('button', { name: /ai trend discovery/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /live trend radar/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /ai synthesis/i })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /tracked trends/i })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /hook intelligence/i })).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /sources/i })).toBeInTheDocument();
 
-      // Verify Discovery Form
-      expect(screen.getByPlaceholderText(/e\.g\. Local AI tools/i)).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /analyze trends with gemini/i })).toBeInTheDocument();
+      // Verify 1-click auto scan button
+      expect(screen.getByRole('button', { name: /1-click scan breakout trends/i })).toBeInTheDocument();
+
+      // Wait for radar trends to render
+      await waitFor(() => {
+        expect(screen.getByText('Biomechanics vs Bro-Science Form Fixes')).toBeInTheDocument();
+        expect(screen.getByRole('button', { name: /build reel concept/i })).toBeInTheDocument();
+      });
     });
 
     it('navigates to Hook Intelligence tab and displays curated hooks with copy action', async () => {
@@ -158,14 +177,14 @@ describe('V2 Feature Component Tests', () => {
 
       // Wait for hooks to render
       await waitFor(() => {
-        expect(screen.getByText(/Most people think AI will replace creators/i)).toBeInTheDocument();
+        expect(screen.getByText(/"Most people think AI will replace creators, but here is what really happens."/i)).toBeInTheDocument();
         expect(screen.getByRole('button', { name: /copy/i })).toBeInTheDocument();
       });
     });
   });
 
   describe('3. Idea Studio Feature', () => {
-    it('renders Idea Studio header, priority scores, and filter controls', async () => {
+    it('renders Idea Studio header, priority scores, and proactive suggest button', async () => {
       render(
         <MemoryRouter>
           <IdeaStudio />
@@ -174,7 +193,7 @@ describe('V2 Feature Component Tests', () => {
 
       // Verify header and action buttons
       expect(screen.getByText('Idea Studio')).toBeInTheDocument();
-      expect(screen.getByRole('button', { name: /generate with ai/i })).toBeInTheDocument();
+      expect(screen.getByRole('button', { name: /suggest viral ideas for fitness/i })).toBeInTheDocument();
       expect(screen.getByRole('button', { name: /new idea/i })).toBeInTheDocument();
 
       // Wait for ideas to render
@@ -186,19 +205,19 @@ describe('V2 Feature Component Tests', () => {
       });
     });
 
-    it('opens AI brainstorming modal with Gemini parameters', () => {
+    it('opens AI brainstorming modal with prompt templates', () => {
       render(
         <MemoryRouter>
           <IdeaStudio />
         </MemoryRouter>
       );
 
-      // Click Generate with AI
-      fireEvent.click(screen.getByRole('button', { name: /generate with ai/i }));
+      // Click Custom AI Brainstorm
+      fireEvent.click(screen.getByRole('button', { name: /custom ai brainstorm/i }));
 
       // Modal appears
-      expect(screen.getByText(/Brainstorm with Gemini 3.8 Flash/i)).toBeInTheDocument();
-      expect(screen.getByPlaceholderText(/e\.g\. 5 AI productivity automations/i)).toBeInTheDocument();
+      expect(screen.getByText(/AI Concept Brainstorm/i)).toBeInTheDocument();
+      expect(screen.getByText(/Quick Prompt Templates:/i)).toBeInTheDocument();
     });
   });
 });

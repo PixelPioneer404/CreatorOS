@@ -1,7 +1,13 @@
 import { ResearchService } from './research.service.js';
+import { TrendFeedService } from './trend-feed.service.js';
 import { ApiResponse } from '../../utils/api-response.js';
 
 export class ResearchController {
+  static async getTrendingRadar(req, res) {
+    const radar = TrendFeedService.getTrendingRadar(req.query.niche, req.query.platform);
+    return ApiResponse.success(res, radar);
+  }
+
   static async listSources(req, res) {
     const sources = await ResearchService.listSources(req.params.workspaceId, {
       sourceType: req.query.sourceType,

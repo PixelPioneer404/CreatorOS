@@ -1,6 +1,14 @@
 import { apiRequest } from '../lib/api-client.js';
 
 export const ResearchService = {
+  async getTrendingRadar(workspaceId, { niche, platform } = {}) {
+    const params = new URLSearchParams();
+    if (niche) params.append('niche', niche);
+    if (platform) params.append('platform', platform);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return apiRequest(`/workspaces/${workspaceId}/research/trending-radar${query}`);
+  },
+
   async listSources(workspaceId, { sourceType, search } = {}) {
     const params = new URLSearchParams();
     if (sourceType) params.append('sourceType', sourceType);

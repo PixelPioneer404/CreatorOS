@@ -23,6 +23,11 @@ export function requireWorkspaceMember(allowedRoles = []) {
         throw ApiError.badRequest('Invalid workspace ID format.');
       }
 
+      const userParse = uuidSchema.safeParse(req.user.id);
+      if (!userParse.success) {
+        throw ApiError.unauthenticated('Invalid user identifier format.');
+      }
+
       const db = getDb();
       if (!db) {
         throw ApiError.database('Database connection unavailable.');
