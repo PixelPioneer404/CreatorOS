@@ -13,7 +13,7 @@ const envSchema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z.string().optional().default(''),
   AI_PROVIDER: z.string().default('gemini'),
   AI_API_KEY: z.string().optional().default(''),
-  AI_MODEL: z.string().default('gemini-1.5-flash'),
+  AI_MODEL: z.string().default('gemini-3.8-flash'),
   TOKEN_ENCRYPTION_KEY: z.string().optional().default(''),
 });
 
