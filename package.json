@@ -1,0 +1,28 @@
+{
+  "name": "creator-os",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Creator OS - AI-Powered Operating System for Content Creators",
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "dev": "npm --workspace=server run dev",
+    "client:dev": "npm --workspace=client run dev",
+    "server:dev": "npm --workspace=server run dev",
+    "build": "npm --workspace=client run build",
+    "test": "npm --workspace=server run test && npm --workspace=client run test",
+    "test:server": "npm --workspace=server run test",
+    "test:client": "npm --workspace=client run test"
+  },
+  "keywords": [
+    "creator",
+    "ai",
+    "creator-os",
+    "instagram",
+    "content-creation"
+  ],
+  "author": "",
+  "license": "ISC"
+}
