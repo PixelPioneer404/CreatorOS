@@ -4,30 +4,75 @@ import { ApiError } from '../../utils/api-error.js';
 import { AiService } from '../ai/ai.service.js';
 import { z } from 'zod';
 
-const singleIdeaSchema = z.object({
-  title: z.string().default('Untitled Video Concept'),
-  concept: z.string().default(''),
+const singleIdeaSchema = z.preprocess((val) => {
+  if (typeof val !== 'object' || val === null) return val;
+  const v = { ...val };
+  
+  // Normalize hook
+  const rawHook = v.hook || v.mainHook || v.openingHook || v.firstHook || (Array.isArray(v.alternativeHooks) && v.alternativeHooks[0] ? v.alternativeHooks[0] : '');
+  v.hook = typeof rawHook === 'string' ? rawHook.trim() : '';
+
+  // Normalize concept
+  let rawConcept = v.concept || v.description || v.summary;
+  if (!rawConcept && v.audienceProblem && v.viewerValue) {
+    rawConcept = `${v.audienceProblem} ${v.viewerValue}`;
+  } else if (!rawConcept) {
+    rawConcept = v.audienceProblem || v.viewerValue || (v.hook ? `High-retention reel concept built around: "${v.hook}"` : 'High-impact video concept tailored to creator niche.');
+  }
+  v.concept = typeof rawConcept === 'string' ? rawConcept.trim() : '';
+
+  // Normalize title
+  let rawTitle = v.title || v.videoTitle || v.ideaTitle || v.headline || v.name || v.topic;
+  if (!rawTitle || rawTitle.toLowerCase().includes('untitled') || rawTitle.toLowerCase().includes('video concept')) {
+    // Generate a punchy title from hook or concept if generic
+    if (v.hook && v.hook.length > 5) {
+      // Strip trailing punctuation
+      const cleanHook = v.hook.replace(/[.!?]+$/, '');
+      rawTitle = cleanHook.length > 55 ? cleanHook.slice(0, 52) + '...' : cleanHook;
+    } else if (v.concept && v.concept.length > 5) {
+      rawTitle = v.concept.slice(0, 50) + '...';
+    } else {
+      rawTitle = 'High-Impact Viral Reel';
+    }
+  }
+  v.title = typeof rawTitle === 'string' ? rawTitle.trim() : 'Viral Video Angle';
+
+  // Normalize alternativeHooks
+  if (!Array.isArray(v.alternativeHooks)) {
+    v.alternativeHooks = v.altHooks || v.otherHooks || [];
+  }
+
+  // Normalize score
+  if (v.prioritizationScore !== undefined) {
+    if (typeof v.prioritizationScore === 'object' && v.prioritizationScore !== null) {
+      v.score = v.prioritizationScore.total ?? v.prioritizationScore.score ?? 86;
+      v.scoreExplanation = v.prioritizationScore.breakdown ?? v.prioritizationScore.explanation ?? v.scoreExplanation;
+    } else {
+      v.score = Number(v.prioritizationScore) || 86;
+    }
+  } else if (v.score === undefined) {
+    v.score = 86;
+  }
+
+  return v;
+}, z.object({
+  title: z.string().min(1).default('Viral Video Angle'),
+  concept: z.string().min(1).default('Actionable high-retention video concept.'),
   hook: z.string().default(''),
   alternativeHooks: z.array(z.string()).catch([]).default([]),
   format: z.string().default('reel'),
   audienceProblem: z.string().optional().default(''),
   viewerValue: z.string().optional().default(''),
   cta: z.string().optional().default(''),
-  score: z.coerce.number().min(0).max(100).default(80),
-  scoreExplanation: z.object({
-    nicheRelevance: z.coerce.number().default(85),
-    audienceInterest: z.coerce.number().default(85),
-    uniqueness: z.coerce.number().default(80),
-    formatSuitability: z.coerce.number().default(90),
-    researchSupport: z.coerce.number().default(75),
-  }).catch({
-    nicheRelevance: 85,
-    audienceInterest: 85,
-    uniqueness: 80,
-    formatSuitability: 90,
-    researchSupport: 75,
+  score: z.coerce.number().min(0).max(100).default(86),
+  scoreExplanation: z.record(z.unknown()).optional().default({
+    nicheRelevance: 88,
+    audienceInterest: 90,
+    uniqueness: 82,
+    formatSuitability: 92,
+    researchSupport: 84,
   }),
-});
+}));
 
 const ideasGenerationOutputSchema = z.union([
   z.object({
@@ -209,13 +254,17 @@ export class IdeaService {
 
     const systemPrompt = `You are the lead Content Idea Generation engine for Creator OS.
 Your objective is to generate structured, actionable, and viral-ready video ideas tailored for content creators.
-Each idea must include:
-- A high-converting main hook and 2 alternative hooks.
-- Clear audience problem being solved.
-- Clear viewer value.
-- Clear call to action (CTA).
-- An explainable prioritization score (0 to 100) with breakdown across nicheRelevance, audienceInterest, uniqueness, formatSuitability, and researchSupport.
-Return JSON conforming strictly to the schema.`;
+Return a JSON array of ideas or an object with an "ideas" array.
+Each idea must strictly include:
+- title: A catchy, specific video title / headline (e.g. "The 15-Minute Metabolic Burn", "Why Your High-Protein Diet Is Failing You"). Never use generic titles like "Untitled" or "Video Concept".
+- hook: The exact, punchy spoken opening hook for the first 3 seconds (e.g. "Stop squatting like this if you want actual leg growth.").
+- alternativeHooks: An array of 2-3 alternate opening hook lines.
+- concept: A rich 2-3 sentence description of the video concept, what happens in the video, and why it retains viewers.
+- audienceProblem: The exact pain point or curiosity trigger of the audience.
+- viewerValue: The tangible takeaway, tip, or entertaining payoff for the viewer.
+- cta: Clear call to action (e.g., save, comment keyword, follow for part 2).
+- score: Prioritization score between 75 and 98 based on viral potential and retention likelihood.
+- scoreExplanation: An object with numeric scores (0-100) for nicheRelevance, audienceInterest, uniqueness, formatSuitability, and researchSupport.`;
 
     const userPrompt = `Generate ${count} high-performing content ideas:
 Focus Topic: ${topic}
@@ -238,17 +287,17 @@ ${additionalInstructions ? `Special Instructions: ${additionalInstructions}` : '
       const savedList = [];
       for (const item of generated) {
         const saved = await this.createIdea(workspaceId, {
-          title: item.title,
-          concept: item.concept,
+          title: item.title || (item.hook ? item.hook.slice(0, 50) : 'Viral Video Concept'),
+          concept: item.concept || (item.audienceProblem ? `${item.audienceProblem} ${item.viewerValue || ''}` : 'Actionable video concept'),
           niche,
           targetAudience,
           format: item.format || format,
-          mainHook: item.hook,
-          alternativeHooks: item.alternativeHooks,
-          audienceProblem: item.audienceProblem,
-          viewerValue: item.viewerValue,
-          cta: item.cta,
-          priorityScore: item.score,
+          mainHook: item.hook || item.mainHook || '',
+          alternativeHooks: Array.isArray(item.alternativeHooks) ? item.alternativeHooks : [],
+          audienceProblem: item.audienceProblem || null,
+          viewerValue: item.viewerValue || null,
+          cta: item.cta || null,
+          priorityScore: item.score ?? 86,
           scoreExplanation: item.scoreExplanation,
           status: 'draft',
         });
